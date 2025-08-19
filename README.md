@@ -556,16 +556,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <div align="center">
-  <p>Made with ❤️ for pets and their future families</p>
   <p><strong>Every pet deserves a loving home</strong></p>
   
   <p>
     <a href="https://github.com/yourusername/pet-adoption-rescue-map/stargazers">
       <img src="https://img.shields.io/github/stars/yourusername/pet-adoption-rescue-map?style=social" alt="Stars">
     </a>
-    <a href="https://github.com/yourusername/pet-adoption-rescue-map/forks">
+<!--     <a href="https://github.com/yourusername/pet-adoption-rescue-map/forks">
       <img src="https://img.shields.io/badge/github-forks/yourusername/pet-adoption-rescue-map" alt="Forks">
-    </a>
+    </a> -->
     <a href="https://github.com/yourusername/pet-adoption-rescue-map/issues">
       <img src="https://img.shields.io/github/issues/yourusername/pet-adoption-rescue-map" alt="Issues">
     </a>
@@ -574,3 +573,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
     </a>
   </p>
 </div>
+
