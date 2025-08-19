@@ -1,8 +1,8 @@
 // Environment Configuration
 const environment = {
   development: {
-    API_BASE_URL: 'http://localhost:5000/api',
-    APP_NAME: 'Pet Adoption Platform (Dev)',
+    API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api',
+    APP_NAME: import.meta.env.VITE_APP_NAME || 'Pet Adoption Platform (Dev)',
     DEBUG: true,
     LOG_LEVEL: 'debug',
     FEATURES: {
@@ -12,8 +12,8 @@ const environment = {
     }
   },
   staging: {
-    API_BASE_URL: 'https://staging-api.petadoption.com/api',
-    APP_NAME: 'Pet Adoption Platform (Staging)',
+    API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'https://staging-api.petadoption.com/api',
+    APP_NAME: import.meta.env.VITE_APP_NAME || 'Pet Adoption Platform (Staging)',
     DEBUG: false,
     LOG_LEVEL: 'info',
     FEATURES: {
@@ -23,8 +23,8 @@ const environment = {
     }
   },
   production: {
-    API_BASE_URL: 'https://api.petadoption.com/api',
-    APP_NAME: 'Pet Adoption Platform',
+    API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'https://api.petadoption.com/api',
+    APP_NAME: import.meta.env.VITE_APP_NAME || 'Pet Adoption Platform',
     DEBUG: false,
     LOG_LEVEL: 'warn',
     FEATURES: {

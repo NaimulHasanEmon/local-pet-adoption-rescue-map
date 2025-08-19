@@ -29,10 +29,10 @@ This error occurs when MongoDB cannot authenticate with the provided credentials
 **Replace the password in `index.js`:**
 ```javascript
 // OLD (incorrect)
-const uri = "mongodb+srv://LocalPetAdoptionRescueMap:LocalPetAdoptionRescueMap@localpetcluster0.1ggvfxo.mongodb.net/petAdoptionDB?retryWrites=true&w=majority&appName=LocalPetCluster0";
+const uri = "mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority";
 
 // NEW (with correct password)
-const uri = "mongodb+srv://LocalPetAdoptionRescueMap:YOUR_NEW_PASSWORD@localpetcluster0.1ggvfxo.mongodb.net/petAdoptionDB?retryWrites=true&w=majority&appName=LocalPetCluster0";
+const uri = "mongodb+srv://username:YOUR_NEW_PASSWORD@cluster.mongodb.net/database?retryWrites=true&w=majority";
 ```
 
 ### **4. Check Network Access**

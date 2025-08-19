@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   FiHeart,
@@ -13,27 +13,108 @@ import {
   FiArrowLeft,
 } from "react-icons/fi";
 import { FaPaw } from "react-icons/fa";
-import { mockPets } from "../../data/mockData";
+import { petAPI, favoritesAPI, applicationAPI } from "../../services/api";
+import { useAuth } from "../../hooks/useAuth";
 
 const PetProfile = () => {
   const { id } = useParams();
+  const { currentUser } = useAuth();
+  const [pet, setPet] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isFavorited, setIsFavorited] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [applicationSubmitting, setApplicationSubmitting] = useState(false);
 
-  // Find the pet by ID
-  const pet = mockPets.find((p) => p.id === parseInt(id));
+  // Fetch pet data
+  useEffect(() => {
+    const fetchPet = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await petAPI.getPetById(id);
+        
+        if (response.success && response.pet) {
+          setPet(response.pet);
+          
+          // Check if pet is favorited (if user is logged in)
+          if (currentUser) {
+            try {
+              const favoritesResponse = await favoritesAPI.getUserFavorites(currentUser.uid);
+              if (favoritesResponse.success && favoritesResponse.favorites) {
+                const isFav = favoritesResponse.favorites.some(fav => fav.petId === id);
+                setIsFavorited(isFav);
+              }
+            } catch (favError) {
+              console.warn('Could not fetch favorites:', favError);
+            }
+          }
+        } else {
+          setError('Pet not found');
+        }
+      } catch (err) {
+        console.error('Error fetching pet:', err);
+        setError('Failed to load pet information');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (!pet) {
+    if (id) {
+      fetchPet();
+    }
+  }, [id, currentUser]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className='min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50'>
+        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-12'>
+            {/* Image skeleton */}
+            <div className='space-y-4'>
+              <div className='bg-white rounded-2xl shadow-lg overflow-hidden animate-pulse'>
+                <div className='w-full h-96 bg-gray-200'></div>
+              </div>
+              <div className='grid grid-cols-4 gap-2'>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className='w-full h-20 bg-gray-200 rounded-lg'></div>
+                ))}
+              </div>
+            </div>
+            {/* Info skeleton */}
+            <div className='space-y-8'>
+              <div className='bg-white rounded-2xl shadow-lg p-8 animate-pulse'>
+                <div className='h-8 bg-gray-200 rounded mb-4'></div>
+                <div className='h-6 bg-gray-200 rounded mb-6 w-3/4'></div>
+                <div className='grid grid-cols-4 gap-4 mb-6'>
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className='h-16 bg-gray-200 rounded-lg'></div>
+                  ))}
+                </div>
+                <div className='h-20 bg-gray-200 rounded mb-6'></div>
+                <div className='h-12 bg-gray-200 rounded'></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !pet) {
     return (
       <div className='min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center'>
         <div className='text-center'>
           <div className='text-6xl mb-4'>🐕‍🦺</div>
           <h2 className='text-2xl font-bold text-gray-900 mb-2'>
-            Pet not found
+            {error || 'Pet not found'}
           </h2>
           <p className='text-gray-600 mb-6'>
-            The pet you're looking for doesn't exist.
+            The pet you're looking for doesn't exist or couldn't be loaded.
           </p>
           <Link
             to='/browse'
@@ -47,9 +128,24 @@ const PetProfile = () => {
     );
   }
 
-  const handleFavoriteToggle = () => {
-    setIsFavorited(!isFavorited);
-    // In a real app, this would update the backend
+  const handleFavoriteToggle = async () => {
+    if (!currentUser) {
+      alert('Please log in to add favorites');
+      return;
+    }
+
+    try {
+      if (isFavorited) {
+        await favoritesAPI.removeFromFavorites(currentUser.uid, pet._id);
+        setIsFavorited(false);
+      } else {
+        await favoritesAPI.addToFavorites(currentUser.uid, pet._id);
+        setIsFavorited(true);
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      alert('Failed to update favorites. Please try again.');
+    }
   };
 
   const handleShare = () => {
@@ -85,9 +181,12 @@ const PetProfile = () => {
           <div className='space-y-4'>
             <div className='relative bg-white rounded-2xl shadow-lg overflow-hidden'>
               <img
-                src={pet.images[currentImageIndex]}
+                src={pet.images?.[currentImageIndex] || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500'}
                 alt={pet.name}
                 className='w-full h-96 object-cover'
+                onError={(e) => {
+                  e.target.src = 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500';
+                }}
               />
               <div className='absolute top-4 right-4 flex space-x-2'>
                 <button
@@ -115,7 +214,7 @@ const PetProfile = () => {
             </div>
 
             {/* Image Thumbnails */}
-            {pet.images.length > 1 && (
+            {pet.images && pet.images.length > 1 && (
               <div className='grid grid-cols-4 gap-2'>
                 {pet.images.map((image, index) => (
                   <button
@@ -131,6 +230,9 @@ const PetProfile = () => {
                       src={image}
                       alt={`${pet.name} ${index + 1}`}
                       className='w-full h-20 object-cover'
+                      onError={(e) => {
+                        e.target.src = 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500';
+                      }}
                     />
                   </button>
                 ))}
@@ -151,7 +253,7 @@ const PetProfile = () => {
                 </div>
                 <div className='text-right'>
                   <div className='text-3xl font-bold text-green-600'>
-                    ${pet.adoptionFee}
+                    ৳{pet.adoptionFee}
                   </div>
                   <div className='text-sm text-gray-500'>Adoption Fee</div>
                 </div>
@@ -281,34 +383,34 @@ const PetProfile = () => {
                 <div className='flex items-center'>
                   <FaPaw className='h-5 w-5 text-blue-500 mr-3' />
                   <span className='font-semibold text-gray-900'>
-                    {pet.rescueOrg}
+                    {pet.rescueOrganization?.name || pet.rescueOrg}
                   </span>
                 </div>
 
                 <div className='flex items-center'>
                   <FiMail className='h-5 w-5 text-gray-500 mr-3' />
                   <a
-                    href={`mailto:${pet.contactEmail}`}
+                    href={`mailto:${pet.rescueOrganization?.email || pet.contactEmail}`}
                     className='text-blue-600 hover:text-blue-700'
                   >
-                    {pet.contactEmail}
+                    {pet.rescueOrganization?.email || pet.contactEmail}
                   </a>
                 </div>
 
                 <div className='flex items-center'>
                   <FiPhone className='h-5 w-5 text-gray-500 mr-3' />
                   <a
-                    href={`tel:${pet.contactPhone}`}
+                    href={`tel:${pet.rescueOrganization?.phone || pet.contactPhone}`}
                     className='text-blue-600 hover:text-blue-700'
                   >
-                    {pet.contactPhone}
+                    {pet.rescueOrganization?.phone || pet.contactPhone}
                   </a>
                 </div>
 
                 <div className='flex items-center'>
                   <FiCalendar className='h-5 w-5 text-gray-500 mr-3' />
                   <span className='text-gray-700'>
-                    Listed on {new Date(pet.datePosted).toLocaleDateString()}
+                    Listed on {new Date(pet.createdAt || pet.datePosted).toLocaleDateString()}
                   </span>
                 </div>
               </div>
@@ -333,7 +435,47 @@ const PetProfile = () => {
                   </button>
                 </div>
 
-                <form className='space-y-6'>
+                <form 
+                  className='space-y-6'
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    
+                    if (!currentUser) {
+                      alert('Please log in to submit an application');
+                      return;
+                    }
+
+                    setApplicationSubmitting(true);
+                    
+                    try {
+                      const formData = new FormData(e.target);
+                      const applicationData = {
+                        petId: pet._id,
+                        applicantId: currentUser.uid,
+                        applicantName: formData.get('fullName'),
+                        applicantEmail: formData.get('email'),
+                        applicantPhone: formData.get('phone'),
+                        reason: formData.get('reason'),
+                        livingSituation: formData.get('livingSituation'),
+                        petName: pet.name
+                      };
+
+                      const response = await applicationAPI.submitApplication(applicationData);
+                      
+                      if (response.success) {
+                        alert('Application submitted successfully! The rescue organization will contact you soon.');
+                        setShowApplicationForm(false);
+                      } else {
+                        throw new Error(response.message || 'Failed to submit application');
+                      }
+                    } catch (error) {
+                      console.error('Error submitting application:', error);
+                      alert('Failed to submit application. Please try again.');
+                    } finally {
+                      setApplicationSubmitting(false);
+                    }
+                  }}
+                >
                   <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
                     <div>
                       <label className='block text-sm font-medium text-gray-700 mb-2'>
@@ -341,6 +483,9 @@ const PetProfile = () => {
                       </label>
                       <input
                         type='text'
+                        name='fullName'
+                        required
+                        defaultValue={currentUser?.displayName || ''}
                         className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500'
                         placeholder='Your full name'
                       />
@@ -351,6 +496,9 @@ const PetProfile = () => {
                       </label>
                       <input
                         type='email'
+                        name='email'
+                        required
+                        defaultValue={currentUser?.email || ''}
                         className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500'
                         placeholder='your@email.com'
                       />
@@ -363,8 +511,10 @@ const PetProfile = () => {
                     </label>
                     <input
                       type='tel'
+                      name='phone'
+                      required
                       className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500'
-                      placeholder='(555) 123-4567'
+                      placeholder='+880 1xxx-xxxxxx'
                     />
                   </div>
 
@@ -373,7 +523,9 @@ const PetProfile = () => {
                       Why do you want to adopt {pet.name}?
                     </label>
                     <textarea
+                      name='reason'
                       rows={4}
+                      required
                       className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none'
                       placeholder='Tell us about your interest in this pet...'
                     ></textarea>
@@ -383,11 +535,16 @@ const PetProfile = () => {
                     <label className='block text-sm font-medium text-gray-700 mb-2'>
                       Living Situation
                     </label>
-                    <select className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500'>
-                      <option>House with yard</option>
-                      <option>Apartment</option>
-                      <option>Condo</option>
-                      <option>Other</option>
+                    <select 
+                      name='livingSituation'
+                      required
+                      className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500'
+                    >
+                      <option value=''>Select your living situation</option>
+                      <option value='house_with_yard'>House with yard</option>
+                      <option value='apartment'>Apartment</option>
+                      <option value='condo'>Condo</option>
+                      <option value='other'>Other</option>
                     </select>
                   </div>
 
@@ -395,15 +552,17 @@ const PetProfile = () => {
                     <button
                       type='button'
                       onClick={() => setShowApplicationForm(false)}
-                      className='flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium'
+                      disabled={applicationSubmitting}
+                      className='flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium disabled:opacity-50'
                     >
                       Cancel
                     </button>
                     <button
                       type='submit'
-                      className='flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 font-medium'
+                      disabled={applicationSubmitting}
+                      className='flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed'
                     >
-                      Submit Application
+                      {applicationSubmitting ? 'Submitting...' : 'Submit Application'}
                     </button>
                   </div>
                 </form>

@@ -47,38 +47,89 @@ const BrowsePets = () => {
     }
   };
 
-  // Filter and search pets
-  const filteredPets = useMemo(() => {
-    let filtered = mockPets.filter(pet => {
-      const matchesSearch = pet.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          pet.breed.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          pet.location.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesType = filters.type === 'All' || pet.type === filters.type;
-      const matchesSize = filters.size === 'All' || pet.size === filters.size;
-      const matchesAge = filters.age === 'All' || categorizeAge(pet.age) === filters.age;
-      const matchesGender = filters.gender === 'All' || pet.gender === filters.gender;
-      const matchesEnergyLevel = filters.energyLevel === 'All' || pet.energyLevel === filters.energyLevel;
-      
-      return matchesSearch && matchesType && matchesSize && matchesAge && matchesGender && matchesEnergyLevel;
-    });
+  // Fetch pets from database
+  const fetchPets = async (page = 1, resetPets = true) => {
+    try {
+      setLoading(true);
+      setError(null);
 
-    // Sort pets
+      // Build search parameters
+      const searchParams = {
+        page,
+        limit: 20,
+        status: 'Available'
+      };
+
+      // Add search term
+      if (searchTerm.trim()) {
+        searchParams.q = searchTerm.trim();
+      }
+
+      // Add filters (only non-'All' values)
+      if (filters.type !== 'All') searchParams.type = filters.type;
+      if (filters.size !== 'All') searchParams.size = filters.size;
+      if (filters.gender !== 'All') searchParams.gender = filters.gender;
+      if (filters.energyLevel !== 'All') searchParams.energyLevel = filters.energyLevel;
+
+      // Use advanced search API
+      const response = await searchAPI.advancedSearch(searchParams);
+
+      if (response.success) {
+        const newPets = response.pets || [];
+        
+        if (resetPets) {
+          setPets(newPets);
+        } else {
+          setPets(prev => [...prev, ...newPets]);
+        }
+
+        if (response.pagination) {
+          setPagination(response.pagination);
+        }
+      } else {
+        setError('Failed to fetch pets');
+      }
+    } catch (err) {
+      console.error('Error fetching pets:', err);
+      setError('Failed to load pets. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial fetch
+  useEffect(() => {
+    fetchPets(1, true);
+  }, []);
+
+  // Fetch when search/filters change (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      fetchPets(1, true);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, filters]);
+
+  // Client-side sorting of already fetched pets
+  const sortedPets = useMemo(() => {
+    const petsToSort = [...pets];
+    
     switch (sortBy) {
       case 'newest':
-        return filtered.sort((a, b) => new Date(b.datePosted) - new Date(a.datePosted));
+        return petsToSort.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       case 'oldest':
-        return filtered.sort((a, b) => new Date(a.datePosted) - new Date(b.datePosted));
+        return petsToSort.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
       case 'price-low':
-        return filtered.sort((a, b) => a.adoptionFee - b.adoptionFee);
+        return petsToSort.sort((a, b) => a.adoptionFee - b.adoptionFee);
       case 'price-high':
-        return filtered.sort((a, b) => b.adoptionFee - a.adoptionFee);
+        return petsToSort.sort((a, b) => b.adoptionFee - a.adoptionFee);
       case 'name':
-        return filtered.sort((a, b) => a.name.localeCompare(b.name));
+        return petsToSort.sort((a, b) => a.name.localeCompare(b.name));
       default:
-        return filtered;
+        return petsToSort;
     }
-  }, [mockPets, searchTerm, filters, sortBy]);
+  }, [pets, sortBy]);
 
   const handleFilterChange = (filterType, value) => {
     setFilters(prev => ({
@@ -96,6 +147,12 @@ const BrowsePets = () => {
       energyLevel: 'All'
     });
     setSearchTerm('');
+  };
+
+  const loadMorePets = () => {
+    if (pagination.hasNext && !loading) {
+      fetchPets(pagination.currentPage + 1, false);
+    }
   };
 
   return (
@@ -179,7 +236,7 @@ const BrowsePets = () => {
                   Clear All Filters
                 </button>
                 <span className="text-sm text-gray-600">
-                  {filteredPets.length} pets found
+                  {loading ? 'Loading...' : `${pagination.totalPets || pets.length} pets found`}
                 </span>
               </div>
             </div>
@@ -187,7 +244,39 @@ const BrowsePets = () => {
         </div>
 
         {/* Results */}
-        {filteredPets.length === 0 ? (
+        {loading && pets.length === 0 ? (
+          // Loading skeletons
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="bg-white rounded-2xl shadow-lg overflow-hidden animate-pulse">
+                <div className="w-full h-64 bg-gray-200"></div>
+                <div className="p-6">
+                  <div className="h-6 bg-gray-200 rounded mb-2"></div>
+                  <div className="h-4 bg-gray-200 rounded mb-4 w-3/4"></div>
+                  <div className="h-16 bg-gray-200 rounded mb-4"></div>
+                  <div className="flex justify-between mb-4">
+                    <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                  </div>
+                  <div className="h-8 bg-gray-200 rounded"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          // Error state
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">😿</div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Unable to load pets</h3>
+            <p className="text-gray-600 mb-6">{error}</p>
+            <button
+              onClick={() => fetchPets(1, true)}
+              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-300"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : sortedPets.length === 0 ? (
           <div className="text-center py-16">
             <div className="text-6xl mb-4">🐕‍🦺</div>
             <h3 className="text-2xl font-bold text-gray-900 mb-2">No pets found</h3>
@@ -203,13 +292,16 @@ const BrowsePets = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredPets.map((pet) => (
-              <div key={pet.id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group">
+            {sortedPets.map((pet) => (
+              <div key={pet._id} className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group">
                 <div className="relative overflow-hidden">
                   <img
-                    src={pet.images[0]}
+                    src={pet.images?.[0] || 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500'}
                     alt={pet.name}
                     className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      e.target.src = 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=500';
+                    }}
                   />
                   <div className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer hover:bg-red-50">
                     <FiHeart className="h-4 w-4 text-red-500" />
@@ -243,12 +335,12 @@ const BrowsePets = () => {
                   
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center text-green-600">
-                      <FiDollarSign className="h-4 w-4 mr-1" />
+                      <span className="text-sm mr-1">৳</span>
                       <span className="font-bold">{pet.adoptionFee}</span>
                     </div>
-                    <div className="flex items-center space-x-2 text-xs text-gray-500">
+                    <div className="flex items-center space-x-1 text-xs text-gray-500">
                       {pet.vaccinated && <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full">Vaccinated</span>}
-                      {pet.spayedNeutered && <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Spayed/Neutered</span>}
+                      {pet.spayedNeutered && <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">Fixed</span>}
                     </div>
                   </div>
                   
@@ -268,7 +360,7 @@ const BrowsePets = () => {
                   </div>
                   
                   <Link
-                    to={`/pet/${pet.id}`}
+                    to={`/pet/${pet._id}`}
                     className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white py-3 px-4 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all duration-300 text-center block font-medium"
                   >
                     Learn More
@@ -280,11 +372,24 @@ const BrowsePets = () => {
         )}
 
         {/* Load More Button (for pagination) */}
-        {filteredPets.length > 0 && (
+        {pagination.hasNext && !loading && (
           <div className="text-center mt-12">
-            <button className="bg-white text-gray-700 px-8 py-3 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-300 font-medium">
+            <button 
+              onClick={loadMorePets}
+              className="bg-white text-gray-700 px-8 py-3 rounded-lg border-2 border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all duration-300 font-medium"
+            >
               Load More Pets
             </button>
+          </div>
+        )}
+
+        {/* Loading more indicator */}
+        {loading && pets.length > 0 && (
+          <div className="text-center mt-8">
+            <div className="inline-flex items-center px-4 py-2 text-gray-600">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
+              Loading more pets...
+            </div>
           </div>
         )}
       </div>

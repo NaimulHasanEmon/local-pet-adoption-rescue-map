@@ -1,12 +1,13 @@
 const express = require('express');
 const cors = require('cors');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+require('dotenv').config();
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 // MongoDB Configuration
-const uri = "mongodb+srv://LocalPetAdoptionRescueMap:Req0NlhvAB60Kq33@localpetcluster0.1ggvfxo.mongodb.net/petAdoptionDB?retryWrites=true&w=majority&appName=LocalPetCluster0";
+const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/petAdoptionDB";
 
 const client = new MongoClient(uri, {
   serverApi: {
