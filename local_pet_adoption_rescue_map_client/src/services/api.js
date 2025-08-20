@@ -62,13 +62,41 @@ export const petAPI = {
 
   // Get all pets with filters
   getPets: async (filters = {}) => {
-    const queryParams = new URLSearchParams(filters).toString();
-    return apiRequest(`/pets?${queryParams}`);
+    try {
+      // Check if running locally
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('Running locally, using fallback data for getPets');
+        const { fallbackData } = await import('../utils/fallbackData');
+        return await fallbackData.getPets(filters);
+      }
+      
+      const queryParams = new URLSearchParams(filters).toString();
+      return await apiRequest(`/pets?${queryParams}`);
+    } catch (error) {
+      // Import fallback data dynamically to avoid circular dependencies
+      const { fallbackData } = await import('../utils/fallbackData');
+      console.warn('Server unavailable, using fallback data for getPets');
+      return await fallbackData.getPets(filters);
+    }
   },
 
   // Get pet by ID
   getPetById: async (id) => {
-    return apiRequest(`/pets/${id}`);
+    try {
+      // Check if running locally
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('Running locally, using fallback data for getPetById');
+        const { fallbackData } = await import('../utils/fallbackData');
+        return await fallbackData.getPetById(id);
+      }
+      
+      return await apiRequest(`/pets/${id}`);
+    } catch (error) {
+      // Import fallback data dynamically to avoid circular dependencies
+      const { fallbackData } = await import('../utils/fallbackData');
+      console.warn('Server unavailable, using fallback data for getPetById');
+      return await fallbackData.getPetById(id);
+    }
   },
 
   // Update pet
@@ -199,8 +227,22 @@ export const searchAPI = {
 
   // Advanced search with multiple filters
   advancedSearch: async (searchParams = {}) => {
-    const queryParams = new URLSearchParams(searchParams).toString();
-    return apiRequest(`/search/advanced?${queryParams}`);
+    try {
+      // Check if running locally
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('Running locally, using fallback data for advancedSearch');
+        const { fallbackData } = await import('../utils/fallbackData');
+        return await fallbackData.advancedSearch(searchParams);
+      }
+      
+      const queryParams = new URLSearchParams(searchParams).toString();
+      return await apiRequest(`/search/advanced?${queryParams}`);
+    } catch (error) {
+      // Import fallback data dynamically to avoid circular dependencies
+      const { fallbackData } = await import('../utils/fallbackData');
+      console.warn('Server unavailable, using fallback data for advancedSearch');
+      return await fallbackData.advancedSearch(searchParams);
+    }
   },
 };
 
@@ -209,7 +251,21 @@ export const searchAPI = {
 export const enhancedStatsAPI = {
   // Basic dashboard stats
   getDashboardStats: async () => {
-    return apiRequest('/stats/dashboard');
+    try {
+      // Check if running locally
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('Running locally, using fallback data for getDashboardStats');
+        const { fallbackData } = await import('../utils/fallbackData');
+        return await fallbackData.getDashboardStats();
+      }
+      
+      return await apiRequest('/stats/dashboard');
+    } catch (error) {
+      // Import fallback data dynamically to avoid circular dependencies
+      const { fallbackData } = await import('../utils/fallbackData');
+      console.warn('Server unavailable, using fallback data for getDashboardStats');
+      return await fallbackData.getDashboardStats();
+    }
   },
 
   // Detailed statistics

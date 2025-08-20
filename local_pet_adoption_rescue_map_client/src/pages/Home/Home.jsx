@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiHeart, FiMap, FiUsers, FiShield, FiSearch, FiStar } from 'react-icons/fi';
 import { FaPaw, FaDog, FaCat } from 'react-icons/fa';
 import { petAPI, enhancedStatsAPI } from '../../services/api';
+import { fallbackData } from '../../utils/fallbackData';
 
 const Home = () => {
   const [featuredPets, setFeaturedPets] = useState([]);
@@ -12,6 +13,7 @@ const Home = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
 
   // Success stories (keeping static for now as they're less frequently updated)
   const successStories = [
@@ -38,20 +40,57 @@ const Home = () => {
       try {
         setLoading(true);
         
-        // Fetch featured pets (first 3 available pets)
-        const petsResponse = await petAPI.getPets({ 
-          status: 'Available', 
-          limit: 3,
-          page: 1
-        });
+        // Fetch featured pets (first 3 available pets) with fallback
+        let petsResponse;
+        
+        // Check if running locally
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          console.log('Running locally, using fallback data for pets');
+          petsResponse = await fallbackData.getPets({ 
+            status: 'Available', 
+            limit: 3,
+            page: 1
+          });
+        } else {
+          try {
+            petsResponse = await petAPI.getPets({ 
+              status: 'Available', 
+              limit: 3,
+              page: 1
+            });
+          } catch (petsError) {
+            console.warn('Server unavailable for pets, using fallback data:', petsError);
+            petsResponse = await fallbackData.getPets({ 
+              status: 'Available', 
+              limit: 3,
+              page: 1
+            });
+          }
+        }
         
         if (petsResponse.success && petsResponse.pets) {
           setFeaturedPets(petsResponse.pets);
         }
+        
 
-        // Fetch statistics for the hero section
+
+        // Fetch statistics for the hero section with fallback
         try {
-          const statsResponse = await enhancedStatsAPI.getDashboardStats();
+          let statsResponse;
+          
+          // Check if running locally
+          if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            console.log('Running locally, using fallback data for stats');
+            statsResponse = await fallbackData.getDashboardStats();
+          } else {
+            try {
+              statsResponse = await enhancedStatsAPI.getDashboardStats();
+            } catch (statsError) {
+              console.warn('Server unavailable for stats, using fallback data:', statsError);
+              statsResponse = await fallbackData.getDashboardStats();
+            }
+          }
+          
           if (statsResponse.success && statsResponse.stats) {
             setStats({
               totalPets: statsResponse.stats.availablePets || 0,
@@ -59,13 +98,36 @@ const Home = () => {
             });
           }
         } catch (statsError) {
-          console.warn('Could not fetch stats:', statsError);
+          console.warn('Could not fetch stats from either source:', statsError);
           // Continue without stats
         }
 
       } catch (err) {
         console.error('Error fetching home page data:', err);
-        setError('Failed to load pets data');
+        // Try fallback data as last resort
+        try {
+          const fallbackPetsResponse = await fallbackData.getPets({ 
+            status: 'Available', 
+            limit: 3,
+            page: 1
+          });
+          
+          if (fallbackPetsResponse.success && fallbackPetsResponse.pets) {
+            setFeaturedPets(fallbackPetsResponse.pets);
+          }
+
+          const fallbackStatsResponse = await fallbackData.getDashboardStats();
+          if (fallbackStatsResponse.success && fallbackStatsResponse.stats) {
+            setStats({
+              totalPets: fallbackStatsResponse.stats.availablePets || 0,
+              totalOrganizations: fallbackStatsResponse.stats.totalOrganizations || 0
+            });
+          }
+
+        } catch (fallbackError) {
+          console.error('Fallback data also failed:', fallbackError);
+          setError('Failed to load pets data from both server and fallback');
+        }
       } finally {
         setLoading(false);
       }

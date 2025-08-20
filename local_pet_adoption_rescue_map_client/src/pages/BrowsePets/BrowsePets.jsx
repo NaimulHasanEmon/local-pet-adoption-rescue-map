@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { FiHeart, FiSearch, FiFilter, FiMapPin, FiDollarSign } from 'react-icons/fi';
 import { FaPaw } from 'react-icons/fa';
 import { searchAPI, petAPI } from '../../services/api';
+import { fallbackData } from '../../utils/fallbackData';
 
 const BrowsePets = () => {
   const [pets, setPets] = useState([]);
@@ -24,6 +25,7 @@ const BrowsePets = () => {
     totalPets: 0,
     hasNext: false
   });
+
 
   // Filter options
   const filterOptions = {
@@ -47,7 +49,7 @@ const BrowsePets = () => {
     }
   };
 
-  // Fetch pets from database
+  // Fetch pets from database with fallback to mock data
   const fetchPets = async (page = 1, resetPets = true) => {
     try {
       setLoading(true);
@@ -71,8 +73,22 @@ const BrowsePets = () => {
       if (filters.gender !== 'All') searchParams.gender = filters.gender;
       if (filters.energyLevel !== 'All') searchParams.energyLevel = filters.energyLevel;
 
-      // Use advanced search API
-      const response = await searchAPI.advancedSearch(searchParams);
+      // Always use fallback data for local development
+      let response;
+      
+      // Check if running locally
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        console.log('Running locally, using fallback data');
+        response = await fallbackData.advancedSearch(searchParams);
+      } else {
+        // Try to fetch from server first, then fallback to mock data
+        try {
+          response = await searchAPI.advancedSearch(searchParams);
+        } catch (serverError) {
+          console.warn('Server unavailable, using fallback data:', serverError);
+          response = await fallbackData.advancedSearch(searchParams);
+        }
+      }
 
       if (response.success) {
         const newPets = response.pets || [];
@@ -86,12 +102,46 @@ const BrowsePets = () => {
         if (response.pagination) {
           setPagination(response.pagination);
         }
+        
+
       } else {
         setError('Failed to fetch pets');
       }
     } catch (err) {
       console.error('Error fetching pets:', err);
-      setError('Failed to load pets. Please try again.');
+      // Try fallback data as last resort
+      try {
+        const fallbackResponse = await fallbackData.advancedSearch({
+          page,
+          limit: 20,
+          status: 'Available',
+          q: searchTerm.trim(),
+          type: filters.type !== 'All' ? filters.type : undefined,
+          size: filters.size !== 'All' ? filters.size : undefined,
+          gender: filters.gender !== 'All' ? filters.gender : undefined,
+          energyLevel: filters.energyLevel !== 'All' ? filters.energyLevel : undefined
+        });
+        
+        if (fallbackResponse.success) {
+          const newPets = fallbackResponse.pets || [];
+          
+          if (resetPets) {
+            setPets(newPets);
+          } else {
+            setPets(prev => [...prev, ...newPets]);
+          }
+
+          if (fallbackResponse.pagination) {
+            setPagination(fallbackResponse.pagination);
+          }
+
+        } else {
+          setError('Failed to load pets from both server and fallback data');
+        }
+      } catch (fallbackError) {
+        console.error('Fallback data also failed:', fallbackError);
+        setError('Failed to load pets. Please try again later.');
+      }
     } finally {
       setLoading(false);
     }

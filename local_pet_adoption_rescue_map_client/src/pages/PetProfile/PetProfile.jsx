@@ -15,6 +15,7 @@ import {
 import { FaPaw } from "react-icons/fa";
 import { petAPI, favoritesAPI, applicationAPI } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
+import { fallbackData } from "../../utils/fallbackData";
 
 const PetProfile = () => {
   const { id } = useParams();
@@ -27,14 +28,27 @@ const PetProfile = () => {
   const [showApplicationForm, setShowApplicationForm] = useState(false);
   const [applicationSubmitting, setApplicationSubmitting] = useState(false);
 
-  // Fetch pet data
+  // Fetch pet data with fallback
   useEffect(() => {
     const fetchPet = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        const response = await petAPI.getPetById(id);
+        let response;
+        
+        // Check if running locally
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          console.log('Running locally, using fallback data for pet');
+          response = await fallbackData.getPetById(id);
+        } else {
+          try {
+            response = await petAPI.getPetById(id);
+          } catch (serverError) {
+            console.warn('Server unavailable, using fallback data for pet:', serverError);
+            response = await fallbackData.getPetById(id);
+          }
+        }
         
         if (response.success && response.pet) {
           setPet(response.pet);
@@ -56,7 +70,18 @@ const PetProfile = () => {
         }
       } catch (err) {
         console.error('Error fetching pet:', err);
-        setError('Failed to load pet information');
+        // Try fallback data as last resort
+        try {
+          const fallbackResponse = await fallbackData.getPetById(id);
+          if (fallbackResponse.success && fallbackResponse.pet) {
+            setPet(fallbackResponse.pet);
+          } else {
+            setError('Pet not found in both server and fallback data');
+          }
+        } catch (fallbackError) {
+          console.error('Fallback data also failed:', fallbackError);
+          setError('Failed to load pet information from both server and fallback');
+        }
       } finally {
         setLoading(false);
       }
